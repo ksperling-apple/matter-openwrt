@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2023-2024 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,12 +26,12 @@ PKG_SOURCE_SUBMODULES:=\
   third_party/nlio/repo
 
 # Hash can be regenerated with make package/matter-netman/check FIXUP=1
-PKG_SOURCE_DATE:=2023-08-08
-PKG_SOURCE_VERSION:=367a0c672c18e0137e0162c15b78adbcb039a33a
-PKG_MIRROR_HASH:=5be101a07ffefe7e5bc25f2b3b497d2639e6b8bffb8ec41e173e0904ea814fa8
+PKG_SOURCE_DATE:=2024-05-30
+PKG_SOURCE_VERSION:=896f802e689fbb31744d50134a6a8b2a3d67fb52
+PKG_MIRROR_HASH:=48b07ade631946e75f0872c6e9ace56cfb3c5e8fbb064399d426a262b33f7e4f
 
 # Use local source dir for development
-# USE_SOURCE_DIR:=$(HOME)/workspace/connectedhomeip
+USE_SOURCE_DIR:=$(HOME)/workspace/connectedhomeip
 
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
@@ -44,17 +44,19 @@ include $(INCLUDE_DIR)/package.mk
 define Package/matter-netman
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=Matter Network Manager Daemon
+  TITLE:=Matter Network Infrastructure Manager Daemon
   URL:=https://github.com/project-chip/connectedhomeip
-  DEPENDS:=+libstdcpp +libopenssl +glib2
+  DEPENDS:=+libstdcpp +libopenssl +libubus +libubox
+  USERID:=matter:matter
 endef
 
 define Package/matter-netman/description
-  Matter Network Manager Daemon
+  Matter Network Infrastructure Manager Daemon
   Integrates a router / access point with the Matter IoT ecosystem.
 endef
 
 # https://github.com/project-chip/matter-openwrt/issues/2
+# PKG_SOURCE_SUBMODULES support is in OpenWrt main but not 23.x releases.
 ifeq ($(DUMP)$(filter SUBMODULES:=,$(Download/Defaults)),)
 $(error PKG_SOURCE_SUBMODULES is not supported, ensure https://github.com/openwrt/openwrt/pull/13000 is included in your OpenWrt buildroot)
 endif
@@ -66,26 +68,27 @@ TARGET_CXXFLAGS += -Wno-format-nonliteral
 CHIP_BUILD_ENV_DIR:=$(STAGING_DIR_HOST)/share/chip-build-env
 OUT_DIR:=$(PKG_BUILD_DIR)/out/openwrt
 
-# lighting-app is a placeholder for now: https://github.com/project-chip/connectedhomeip/issues/28312
 define Build/Configure
 	mkdir -p $(OUT_DIR) && cd $(OUT_DIR) && \
 		$(CONFIGURE_VARS) $(PKG_BUILD_DIR)/scripts/configure \
 			--build-env-dir="$(CHIP_BUILD_ENV_DIR)" \
-			--project=examples/lighting-app/linux \
+			--project=examples/network-manager-app/linux \
 			--target=$(GNU_TARGET_NAME) \
-			--enable-wifi=no \
 			--enable-openthread=no \
 			--enable-network-layer-ble=no \
-			--enable-tracing-support=no
+			--enable-tracing-support=no \
+			--enable-ubus
 endef
 
 define Build/Compile
-	$(NINJA) -C $(OUT_DIR) chip-lighting-app
+	$(NINJA) -C $(OUT_DIR) matter-network-manager-app
 endef
 
 define Package/matter-netman/install
-	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(OUT_DIR)/chip-lighting-app $(1)/usr/sbin
+	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/init.d $(1)/usr/share/acl.d
+	$(INSTALL_BIN) $(OUT_DIR)/matter-network-manager-app $(1)/usr/sbin
+	$(INSTALL_BIN) ./files/matter.init $(1)/etc/init.d/matter
+	$(INSTALL_DATA) ./files/matter.acl.json $(1)/usr/share/acl.d/matter.json
 endef
 
 $(eval $(call BuildPackage,matter-netman))

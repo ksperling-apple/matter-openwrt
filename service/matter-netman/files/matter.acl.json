@@ -1,0 +1,5 @@
+{
+	"user": "matter",
+	"publish": [ "matter" ],
+	"send": [ "matter.*" ]
+}
